@@ -1,11 +1,15 @@
-# Handshake Prompt Protocol (HPP)
+# Handshake Prompt Protocol (HPP) · 握手提示词协议
 
 > **Zero configuration. One copy-paste. Your Agent operates any web service.**
+>
+> **零配置。一次复制粘贴。让 AI Agent 直接操作你的 Web 服务。**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-handshake--prompt-blue)](https://pypi.org/project/handshake-prompt/)
 [![PyPI](https://img.shields.io/badge/PyPI-handshake--prompt--agent-blue)](https://pypi.org/project/handshake-prompt-agent/)
 [![npm](https://img.shields.io/badge/npm-handshake--prompt--client-red)](https://www.npmjs.com/package/handshake-prompt-client)
+
+[English](#what-is-it) · [中文](#这是什么)
 
 ---
 
@@ -28,137 +32,161 @@ That's it. The entire authorization and session handoff happens inside the promp
 
 ---
 
-## Why it matters
+## 这是什么？
 
-### The problem with existing approaches
+**握手提示词（Handshake Prompt）** 是一个开放协议，让任何 AI Agent 代替用户操作现有 Web 服务——**用户无需做任何配置**。
 
-Connecting an AI Agent to a legacy web service today requires users to:
+不需要生成 API Key，不需要配置 Token，不需要安装 MCP Server。
 
-- **API Key**: generate a key, find the config file, paste it, restart the app — just to try once
-- **OAuth**: click through a multi-step consent flow, manage refresh tokens, re-authorize after expiry
-- **MCP Server**: install a binary, edit JSON config, manage a background daemon — per service, per Agent
+用户只需：
 
-This friction kills adoption. Most users never get through it.
+1. 在浏览器中打开目标 Web 服务（已登录）
+2. 点击页面上的 **「AI 助手」** 按钮，复制一段**握手提示词**
+3. 将其粘贴给自己的 Agent（Codemaker、Claude、Cursor、OpenClaw、Workbody 等均可）
+4. 用自然语言告诉 Agent 要做什么
+5. **实时看到 Agent 逐字段填写**到当前页面
+6. 检查、二次修改，确认后提交
 
-### The Handshake Prompt solution
-
-| | API Key | OAuth | MCP | **Handshake Prompt** |
-|--|:-------:|:-----:|:---:|:--------------------:|
-| User setup steps | 3–5 | 2–3 | 5–10 | **1** |
-| Expires automatically | ❌ | ❌ | ❌ | **✅** |
-| Scoped to single task | ❌ | ❌ | ❌ | **✅** |
-| Works with any Agent | ✅ | ✅ | MCP-only | **✅** |
-| User sees Agent work live | ❌ | ❌ | ❌ | **✅** |
-| Backend integration cost | medium | heavy | heavy | **3 lines** |
+整个授权和会话移交的过程都发生在这段提示词文本里。
 
 ---
 
-## Use cases
+## Why it matters · 为什么重要
 
-Handshake Prompt is purpose-built for **AI-enabling legacy IT systems** that weren't designed with Agent access in mind.
+### The problem · 现有方案的痛点
 
-### 📋 Complex Enterprise Forms — The Core Scenario
+Connecting an AI Agent to a legacy web service today requires users to:  
+把 AI Agent 接入一个现有 Web 服务，目前的用户需要：
 
+- **API Key**：generate a key, find the config, paste, restart · 生成密钥、找配置文件、粘贴、重启
+- **OAuth**：click through consent flows, manage refresh tokens · 走授权流程、管理刷新令牌
+- **MCP Server**：install a binary, edit JSON config, manage a daemon — per service · 安装后台服务、编辑配置、每个系统都来一次
+
+**This friction kills adoption. Most users never get through it.**  
+**这些门槛直接劝退了大多数用户。**
+
+### The solution · 握手提示词的解法
+
+| | API Key | OAuth | MCP | **Handshake Prompt · 握手提示词** |
+|--|:-------:|:-----:|:---:|:--------------------:|
+| 用户配置步骤 User setup steps | 3–5 | 2–3 | 5–10 | **1** |
+| 自动过期 Expires automatically | ❌ | ❌ | ❌ | **✅** |
+| 单任务授权 Scoped to single task | ❌ | ❌ | ❌ | **✅** |
+| 适配任意 Agent Works with any Agent | ✅ | ✅ | MCP-only | **✅** |
+| 用户实时看到 Agent 操作 User sees Agent work live | ❌ | ❌ | ❌ | **✅** |
+| 后端接入成本 Backend integration cost | medium | heavy | heavy | **3 lines · 3行代码** |
+
+---
+
+## Use cases · 典型场景
+
+Handshake Prompt is purpose-built for **AI-enabling legacy IT systems** that weren't designed with Agent access in mind.  
+握手提示词专为**现有 IT 系统的 AI 化改造**而设计。
+
+### 📋 复杂企业表单 · Complex Enterprise Forms
+
+> *"我需要的信息分散在一张 Excel 表、一段聊天记录和我自己的记忆里，你能帮我填好吗？"*
+>
 > *"The information I need is scattered across an Excel sheet, a chat log, and my own memory. Can you just fill it in for me?"*
 
-Enterprise web portals often contain complex forms that require users to manually transcribe data from multiple sources — spreadsheets, emails, meeting notes, past records. This is tedious, error-prone, and nobody's favorite part of the workday.
+企业 Web 系统中存在大量复杂表单，用户需要手动从多个来源抄录数据——Excel 表格、邮件、会议记录、历史提交。这不仅耗时，还容易出错。
 
-**With Handshake Prompt:**
+**有了握手提示词之后：**
 
 ```
-1. User opens the form in their browser (already authenticated)
-2. Clicks "🤖 AI Assistant" → copies the handshake prompt
-3. Pastes it to their Agent of choice:
-      OpenClaw · Workbody · Claude · Cursor · Codemaker · any LLM chat
-4. Tells the Agent in plain language:
-      "Fill this from the attached Excel"
-      "Use the numbers from my last chat with the vendor"
-      "Same as the form I submitted last month, but update the date and amount"
-5. Watches each field fill in live on the page
-6. Reviews, edits two fields, clicks Submit
+1. 用户在浏览器中打开表单（已完成身份认证）
+2. 点击「🤖 AI 助手」→ 复制握手提示词
+3. 粘贴给自己的 Agent：
+      Codemaker · OpenClaw · Workbody · Claude · Cursor · 任意 LLM
+4. 用自然语言告诉 Agent：
+      "从附件的 Excel 第5行填写"
+      "用我昨天和供应商的聊天记录里的收货地址"
+      "和上个月的报告一样，只改日期和金额"
+5. 实时看到每个字段被逐一填入，带高亮动画
+6. 检查内容，修改两个字段，点击提交
 ```
 
-The Agent never touches the backend. It only writes to the form the user is already looking at, and nothing saves until the user confirms.
+**Agent 不接触后端。它只写入用户当前正在看的表单，用户确认前不会保存任何内容。**
 
 ---
 
-**Concrete examples of what users tell their Agent:**
+**用户告诉 Agent 的典型指令：**
 
-| Source | What the user says | What the Agent does |
-|--------|-------------------|---------------------|
-| Excel file | *"Fill from the attached procurement sheet, row 5"* | Reads the Excel, maps columns to form fields |
-| Chat history | *"Use the delivery address from my conversation with the supplier yesterday"* | Extracts structured data from unstructured chat |
-| Past habit | *"Same as last month's report, update the period and total"* | Calls `get-context`, copies existing values, patches what changed |
-| Photo / scan | *"Here's the receipt photo, fill the reimbursement form"* | OCR + field mapping |
-| Voice memo | *"I recorded the meeting notes, fill the project summary form"* | Transcription + field extraction |
-| Mixed | *"Excel for the items, chat for the vendor info, last month for the rest"* | Aggregates from multiple sources |
+| 数据来源 | 用户说什么 | Agent 做什么 |
+|---------|-----------|-------------|
+| Excel 文件 | *"从附件采购表第5行填"* | 读取 Excel，列名映射到表单字段 |
+| 聊天记录 | *"用我昨天和供应商聊天里的收货地址"* | 从非结构化文本中提取结构化数据 |
+| 历史习惯 | *"和上个月一样，改一下日期和金额"* | 拉取历史状态，只更新变化的字段 |
+| 照片/扫描件 | *"这是收据照片，帮我填报销单"* | OCR 识别 + 字段映射 |
+| 语音备忘 | *"我录了会议纪要，帮填项目总结表"* | 语音转写 + 信息提取 |
+| 混合来源 | *"物品从 Excel，供应商信息从聊天记录，其余参考上月"* | 多源聚合 |
 
-### 📋 OA / Office Automation
-> *"Submit this expense report for me. Dates from my calendar, amounts from the receipt photo."*
+### 📋 OA 办公自动化 · Office Automation
+> *"帮我提交这份报销单，日期从日历里取，金额从收据照片里读。"*
 
-HR approval flows, leave requests, reimbursement forms — typically trapped in enterprise portals with no API. HPP adds Agent access without touching the core system.
+请假申请、报销审批、采购申请——这些表单通常困在企业门户里没有任何 API 接口。HPP 无需改造核心系统，一行代码接入。
 
-### 🏦 Financial Systems
-> *"Fill in the fund transfer form. Amount: last month's balance. Reference: invoice #2891."*
+### 🏦 金融系统 · Financial Systems
+> *"帮我填转账申请表，金额是上月余额，备注是发票 #2891。"*
 
-Trading platforms, internal accounting systems, fund allocation forms — Agent fills, human confirms, system saves. No AI ever touches the backend directly.
+交易平台、内部财务系统、资金划拨表——Agent 填写，人工确认，系统保存。AI 永远不直接接触后端。
 
-### 📊 ERP / CRM Data Entry
-> *"Create a new customer record from this business card photo."*
+### 📊 ERP / CRM 数据录入
+> *"从这张名片照片创建一条新客户记录。"*
 
-Data entry at scale. The Agent reads unstructured input and maps it to structured form fields. User reviews each field before saving. Audit trail intact.
+大批量数据录入。Agent 读取非结构化输入并映射到结构化表单字段，用户确认后保存，审计留痕完整。
 
-### 🏥 Medical / Legal Records
-> *"Pre-fill the patient intake form from the referral letter."*
+### 🏥 医疗 / 法律档案
+> *"从转诊信里预填患者入院表格。"*
 
-High-stakes workflows where a human must always confirm. HPP enforces this: the Agent fills, the user clicks Save.
+高风险业务流程，必须由人工确认。HPP 在协议层强制执行这一点：Agent 填写，用户点保存。
 
-### ⚙️ Any Form-Heavy Internal Tool
+### ⚙️ 任何字段密集的内部工具
 
-Configuration panels, provisioning wizards, batch data uploads — if it has fields, HPP can help an Agent fill them.
+配置面板、资源配置向导、批量数据上传——只要有表单字段，HPP 就能让 Agent 帮你填。
 
 ---
 
-## How a handshake prompt looks
+## How a handshake prompt looks · 握手提示词长什么样
 
-When the user clicks "AI Assistant", the service generates and copies this to their clipboard:
+用户点击「AI 助手」后，服务自动生成并复制到剪贴板：
 
 ```
-# Handshake Prompt — Expense Report
+# Handshake Prompt — 报销申请单
 
-## Credentials
+## Credentials · 会话凭证
 - sessionId: 4f2a8c1e...
-- token: AbC9Xm2R...      ← single-use, expires in 30 min
+- token: AbC9Xm2R...      ← 一次性令牌，30分钟有效
 - baseUrl: https://oa.company.com
 - mode: form-fill
 
-## Current state
-(service injects current form data here automatically)
+## Current state · 当前已填内容
+（服务自动注入当前表单数据）
 
-## Instructions
+## Instructions · 操作说明
 1. GET  https://oa.company.com/handshake/context/4f2a8c1e  (X-Handshake-Token: <token>)
 2. POST https://oa.company.com/handshake/action/4f2a8c1e   {"actions":[...]}
 
-## Waiting for your instructions...
+## Waiting for your instructions · 等待你的指令...
 ```
 
-The Agent parses the credentials, fetches the form schema, reasons about the fields, and submits values — which appear live in the user's browser.
+Agent 解析凭证，拉取表单 schema，推理字段值，提交——字段值实时出现在用户的浏览器页面上。
 
 ---
 
-## Security by design
+## Security by design · 安全设计
 
-- **Token expires in 30 minutes** — leaked prompts become useless quickly
-- **192-bit token entropy** — brute force is computationally infeasible
-- **User data is protected** — the server refuses any AI attempt to overwrite fields the user has already filled manually
-- **Rate limited** — 60 requests/min/session prevents abuse
-- **User must confirm** — nothing is saved without the user clicking submit
+- **Token 30分钟过期** — 提示词泄露后很快失效 · Token expires in 30 minutes
+- **192-bit token 熵** — 暴力破解不可行 · Brute force is computationally infeasible
+- **用户数据保护** — 服务端强制拒绝 AI 覆盖用户已手填的字段 · Server refuses AI overwrites of user-filled fields
+- **速率限制** — 每会话每分钟 60 次请求上限 · 60 req/min/session
+- **用户必须确认** — 不点提交什么都不保存 · Nothing saves without user clicking submit
 
-See [docs/threat-model.md](docs/threat-model.md) for the full analysis.
+详见 [docs/threat-model.md](docs/threat-model.md)。
 
 ---
 
-## Get started in 3 lines (Flask)
+## Get started in 3 lines · 3行代码接入（Flask）
 
 ```python
 from flask import Flask
@@ -167,109 +195,118 @@ from handshake_prompt import HandshakeManager
 
 app  = Flask(__name__)
 sock = Sock(app)
-HandshakeManager(app, sock)   # ← HPP is live
+HandshakeManager(app, sock)   # ← HPP 接入完成
 ```
 
-Your service now exposes:
+接入后，你的服务自动拥有以下接口：
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/handshake/session`       | POST | Browser creates a session, gets token |
-| `/handshake/context/<sid>` | GET  | Agent reads schema + current values |
-| `/handshake/action/<sid>`  | POST | Agent submits field values (validated, rate-limited) |
-| `/handshake/notify/<sid>`  | POST | Browser reports user manual edits |
-| `/ws/handshake/<sid>`      | WS   | Browser receives real-time push from Agent |
+| 接口 | 方法 | 用途 |
+|------|------|------|
+| `/handshake/session`       | POST | 浏览器创建会话，获取 token |
+| `/handshake/context/<sid>` | GET  | Agent 读取 schema + 当前值 |
+| `/handshake/action/<sid>`  | POST | Agent 提交字段值（含校验和速率限制）|
+| `/handshake/notify/<sid>`  | POST | 浏览器回报用户手动编辑 |
+| `/ws/handshake/<sid>`      | WS   | 浏览器接收 Agent 实时推送 |
 
-### Browser (any framework)
+### Browser SDK · 浏览器端（任意框架）
 
 ```ts
 import { HandshakeClient } from 'handshake-prompt-client'
 
 const hpp = new HandshakeClient()
 await hpp.createSession({ mode: 'form-fill', schema: FIELDS, context: getFormData() })
-hpp.on('action', ({ key, value }) => applyToForm(key, value))   // real-time fill
+hpp.on('action', ({ key, value }) => applyToForm(key, value))   // 实时填入
 hpp.connect()
-await hpp.copyPrompt()   // user pastes this to their Agent
+await hpp.copyPrompt()   // 用户把这段文字粘贴给 Agent
 ```
 
-### Agent (CLI or programmatic)
+### Agent SDK · Agent 端（CLI 或代码调用）
 
 ```bash
 pip install handshake-prompt-agent
 
-# Parse the prompt the user pasted
-handshake-prompt-agent parse-prompt --prompt "$(pbpaste)"
+# 解析用户粘贴的握手提示词
+handshake-prompt-agent parse-prompt --prompt "..."
 
-# Read current schema + values (do this before EVERY action)
+# 拉取当前 schema + 已填内容（每次操作前必须调用）
 handshake-prompt-agent get-context --sid <sid> --token <token> --base <url>
 
-# Fill fields — they appear live in the user's browser
+# 填写字段 —— 实时推送到用户浏览器
 handshake-prompt-agent action --sid <sid> --token <token> --base <url> \
-    --data '{"name":"Alice","department":"Engineering","startDate":"2026-07-01"}'
+    --data '{"name":"张三","department":"研发部","startDate":"2026-07-01"}'
 ```
 
 ---
 
-## Install
+## Install · 安装
 
 ```bash
-# Server-side (Python / Flask)
+# 服务端 Server-side (Python / Flask)
 pip install handshake-prompt
 
-# Browser-side (TypeScript / JavaScript)
+# 浏览器端 Browser-side (TypeScript / JavaScript)
 npm install handshake-prompt-client
 
-# Agent-side (CLI + Python API, zero external dependencies)
+# Agent 端 Agent-side (CLI + Python API，无外部依赖)
 pip install handshake-prompt-agent
 ```
 
 ---
 
-## What's in this repo
+## What's in this repo · 仓库结构
 
 ```
 handshake-prompt/
-├── SPEC.md                      ← Protocol specification
+├── SPEC.md                      ← 协议规范 Protocol specification
 ├── docs/
-│   ├── comparison.md            ← vs OAuth / API Key / MCP
-│   └── threat-model.md          ← Security analysis
+│   ├── comparison.md            ← 对比 OAuth / API Key / MCP
+│   └── threat-model.md          ← 安全分析 Security analysis
 ├── libs/
-│   ├── python/                  ← handshake-prompt      (Flask server SDK)
-│   ├── js/                      ← handshake-prompt-client (browser, TypeScript)
+│   ├── python/                  ← handshake-prompt      (Flask 服务端 SDK)
+│   ├── js/                      ← handshake-prompt-client (浏览器 TypeScript SDK)
 │   └── agent-python/            ← handshake-prompt-agent  (Agent CLI + SDK)
 └── examples/
-    ├── server-flask/            ← Minimal end-to-end demo
-    ├── oa-expense-report/       ← OA expense form walkthrough
-    └── skill/                   ← Reference Agent skill files
+    ├── server-flask/            ← 最小化端到端示例 Minimal end-to-end demo
+    ├── oa-expense-report/       ← OA 报销单示例 OA expense form walkthrough
+    └── skill/                   ← Agent skill 参考文件
 ```
 
 ---
 
-## Run the demo
+## Run the demo · 运行示例
 
 ```bash
 git clone https://github.com/CGandGameEngineLearner/handshake-prompt
 cd handshake-prompt/examples/server-flask
 pip install -r requirements.txt
 python app.py
-# open http://localhost:5000
+# 打开 http://localhost:5000
 ```
 
-Click "🤖 AI Assistant", paste the prompt to your Agent, tell it what to fill.
+点击「🤖 AI Assistant」，把提示词粘贴给你的 Agent，告诉它要填什么。
+
+OA 场景示例：
+
+```bash
+cd handshake-prompt/examples/oa-expense-report
+pip install -r requirements.txt
+python app.py
+# 打开 http://localhost:5001
+```
 
 ---
 
-## Roadmap
+## Roadmap · 路线图
 
-- [x] v0.1 — Flask server SDK, TypeScript browser SDK, Python Agent SDK + CLI
-- [ ] FastAPI server adapter
-- [ ] Express.js server adapter
-- [ ] React / Vue component packages
-- [ ] Conformance test suite
-- [ ] Production deployment guide (nginx, HTTPS, multi-instance with Redis)
+- [x] v0.1 — Flask 服务端 SDK、TypeScript 浏览器 SDK、Python Agent SDK + CLI
+- [ ] FastAPI 服务端适配器
+- [ ] Express.js 服务端适配器
+- [ ] React / Vue 组件包
+- [ ] 合规性测试套件
+- [ ] 生产部署指南（nginx、HTTPS、Redis 多实例）
 
 ---
 
-## License
+## License · 开源协议
 
-MIT — free for commercial use.
+MIT — free for commercial use · 免费商用
