@@ -214,4 +214,4 @@ get-diff     --sid <sid> --token <token> --base <url> [--since <iso_ts>]
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| v0.1 | 2026-06 | 初始版本，基于 autofill 项目提炼 |
+| v0.1 | 2026-06 | Initial release |
