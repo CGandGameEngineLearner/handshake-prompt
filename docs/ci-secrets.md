@@ -37,6 +37,8 @@ with bypass 2fa enabled is required to publish packages.
 
 ### 手动发布（临时方案）
 
+`libs/js/.npmrc` 已固定 `registry=https://registry.npmjs.org`，避免 lockfile 写入内网源导致 CI 失败。
+
 ```bash
 cd libs/js
 npm install

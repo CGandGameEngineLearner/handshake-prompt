@@ -28,3 +28,4 @@ jobs:
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: libs/agent-python/dist/
+          skip-existing: true
