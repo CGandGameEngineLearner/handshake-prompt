@@ -3,3 +3,4 @@
  * Public API
  */
 export * from './client'
+export { buildHandshakePrompt } from './prompt'

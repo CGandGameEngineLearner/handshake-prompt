@@ -1,27 +1,20 @@
 # encoding=utf-8
 """
-HandshakeManager - 把 HPP 协议集成到 Flask 应用
+HandshakeManager — Flask adapter for the HPP ProtocolEngine.
+
+This module is a thin transport binding. Business logic belongs in mode
+handlers (handshake_prompt.modes) or application hooks.
 """
-import json
-import secrets
-import time
-
-from .session import Session
+from .prompt import build_prompt
+from .protocol import ProtocolEngine
 from .store import SessionStore
-
-
-# WebSocket 客户端的协议事件名称
-EVT_CONNECTED = 'connected'
-EVT_ACTION    = 'action'
-EVT_DONE      = 'done'
-EVT_ERROR     = 'error'
 
 
 class HandshakeManager:
     """
-    将 HPP 注册到 Flask app + flask_sock 实例。
+    Mount HPP on a Flask app + flask_sock instance.
 
-    使用：
+    Example::
 
         from flask import Flask
         from flask_sock import Sock
@@ -31,384 +24,98 @@ class HandshakeManager:
         sock = Sock(app)
         hm = HandshakeManager(app, sock)
 
-        # 可选：通过钩子绑定业务身份
         @hm.on_create_session
         def bind_owner(sess, request):
-            sess.owner = session.get('user_id')   # Flask session
-
-    路由（默认 prefix='/handshake'）：
-        POST  /handshake/session         创建会话
-        GET   /handshake/context/<sid>   Agent 读取上下文（需 token）
-        POST  /handshake/action/<sid>    Agent 执行操作（需 token）
-        POST  /handshake/notify/<sid>    浏览器通知用户编辑（需 session 鉴权）
-        GET   /handshake/diff/<sid>      Agent 增量变更（需 token）
-        WS    /ws/handshake/<sid>        实时推送通道（需 token）
+            sess.owner = session.get('user_id')
     """
 
     def __init__(self, app, sock, prefix='/handshake', ws_prefix='/ws/handshake',
                  ttl=1800, rate_limit_per_min=60,
                  store=None, validator=None,
-                 require_browser_auth=None):
-        self.app = app
-        self.sock = sock
+                 require_browser_auth=None, mode_handlers=None):
         self.prefix = prefix.rstrip('/')
         self.ws_prefix = ws_prefix.rstrip('/')
-        self.ttl = ttl
-        self.rate_limit_per_min = rate_limit_per_min
+        self.require_browser_auth = require_browser_auth
         self.store = store or SessionStore()
-        self.validator = validator
-        self.require_browser_auth = require_browser_auth   # callable(request) -> bool
 
-        # 钩子
-        self._on_create_callbacks = []
-        self._on_action_callbacks = []
-        self._on_done_callbacks = []
-        self._on_extend_callbacks = []
+        self.engine = ProtocolEngine(
+            prefix=self.prefix,
+            ws_prefix=self.ws_prefix,
+            ttl=ttl,
+            rate_limit_per_min=rate_limit_per_min,
+            store=self.store,
+            validator=validator,
+            mode_handlers=mode_handlers,
+        )
 
         self._register(app, sock)
         self.store.start_cleanup_thread()
 
-    # ── 钩子注册 ──────────────────────────────────────────
+    # ── hook proxies ─────────────────────────────────────
 
     def on_create_session(self, fn):
-        """装饰器：会话创建时调用 fn(session, request)"""
-        self._on_create_callbacks.append(fn)
-        return fn
+        return self.engine.on_create_session(fn)
 
     def on_action(self, fn):
-        """装饰器：Agent 提交 action 时调用 fn(session, action, request)"""
-        self._on_action_callbacks.append(fn)
-        return fn
+        return self.engine.on_action(fn)
 
     def on_extend(self, fn):
-        """
-        装饰器：Agent 请求延长 Token 时调用 fn(session, extra_seconds, request)。
-
-        返回值：
-          - None / True  → 允许延长
-          - False        → 拒绝（返回 403）
-          - int > 0      → 允许，但实际延长时间改为返回值（秒）
-        """
-        self._on_extend_callbacks.append(fn)
-        return fn
+        return self.engine.on_extend(fn)
 
     def on_done(self, fn):
-        """装饰器：单次 action 批次完成后调用 fn(session, applied, rejected, errors)"""
-        self._on_done_callbacks.append(fn)
-        return fn
+        return self.engine.on_done(fn)
 
-    # ── 工具 ────────────────────────────────────────────
-
-    @staticmethod
-    def _check_token(sess, request):
-        token = request.headers.get('X-Handshake-Token') or request.args.get('token')
-        if not token:
-            return False
-        return secrets.compare_digest(token, sess.token)
-
-    @staticmethod
-    def _parse_ws_token(ws):
-        query = ws.environ.get('QUERY_STRING', '')
-        for part in query.split('&'):
-            if part.startswith('token='):
-                return part[6:]
-        return ''
+    # ── optional prompt helper (application layer) ───────
 
     def build_prompt(self, sess, base_url, instructions=None):
-        """
-        生成标准格式的握手提示词。
-        服务可调用此方法或自行实现，下方提供默认模板。
-        """
-        lines = [
-            f"# Handshake Prompt - {sess.mode}",
-            "",
-            "## Credentials",
-            f"- sessionId: {sess.sid}",
-            f"- token: {sess.token}",
-            f"- baseUrl: {base_url}",
-            f"- mode: {sess.mode}",
-            f"- expiresIn: {sess.expires_in()}s",
-            f"- grant: short-lived-by-default, extendable-by-server-policy",
-            "",
-        ]
-        if instructions:
-            lines += ["## Instructions", instructions, ""]
-        lines += [
-            "## Usage",
-            f"1. GET  {base_url.rstrip('/')}{self.prefix}/context/{sess.sid}   (header X-Handshake-Token: <token>)",
-            f"2. POST {base_url.rstrip('/')}{self.prefix}/action/{sess.sid}    {{\"actions\":[{{\"type\":\"set\",\"key\":...,\"value\":...}}]}}",
-            f"3. POST {base_url.rstrip('/')}{self.prefix}/session/{sess.sid}/extend  {{\"extraSeconds\":1800}}  (optional, long tasks)",
-            "",
-            "## Security Notes",
-            f"- This token expires in {sess.expires_in()} seconds by default and can be extended only if the server allows it",
-            "- Do NOT forward this prompt to others",
-            "- The server will reject any AI attempt to overwrite user-filled fields",
-            "",
-            "## Waiting for user's request...",
-        ]
-        return "\n".join(lines)
+        """Deprecated convenience — prefer handshake_prompt.prompt.build_prompt."""
+        return build_prompt(sess, base_url, prefix=self.prefix, instructions=instructions)
 
-    # ── 路由注册 ─────────────────────────────────────────
+    # ── Flask route registration ───────────────────────────
 
     def _register(self, app, sock):
         from flask import request, jsonify
 
-        prefix = self.prefix
+        def respond(payload, code):
+            if code >= 400:
+                return jsonify(payload), code
+            return jsonify(payload)
 
-        def err(msg, code=400):
-            return jsonify({'error': msg}), code
-
-        # POST /session
-        @app.route(f'{prefix}/session', methods=['POST'])
+        @app.route(f'{self.prefix}/session', methods=['POST'])
         def _hpp_session():
             body = request.get_json(force=True, silent=True) or {}
-            mode    = body.get('mode', 'default')
-            schema  = body.get('schema', [])
-            context = body.get('context', {})
-            meta    = body.get('meta', {})
+            payload, code = self.engine.create_session(body, request)
+            return respond(payload, code)
 
-            sid = secrets.token_hex(16)    # 128bit
-            sess = Session(
-                sid=sid, mode=mode, schema=schema, context=context,
-                ttl=self.ttl,
-                rate_limit_per_min=self.rate_limit_per_min,
-                meta=meta,
-                validator=self.validator,
-            )
-            # 钩子可写入 owner / 校验权限等
-            for cb in self._on_create_callbacks:
-                try:
-                    cb(sess, request)
-                except Exception as e:
-                    return err(str(e), 403)
-
-            self.store.put(sess)
-
-            return jsonify({
-                'sessionId':  sid,
-                'token':      sess.token,
-                'wsUrl':      f'{self.ws_prefix}/{sid}',
-                'contextUrl': f'{prefix}/context/{sid}',
-                'actionUrl':  f'{prefix}/action/{sid}',
-                'diffUrl':    f'{prefix}/diff/{sid}',
-                'notifyUrl':  f'{prefix}/notify/{sid}',
-                'expiresIn':  self.ttl,
-            })
-
-        # GET /context/<sid>
-        @app.route(f'{prefix}/context/<sid>', methods=['GET'])
+        @app.route(f'{self.prefix}/context/<sid>', methods=['GET'])
         def _hpp_context(sid):
-            sess = self.store.get(sid)
-            if not sess:
-                return err('session not found or expired', 404)
-            if not self._check_token(sess, request):
-                return err('invalid token', 403)
-            if not sess.check_rate_limit():
-                return err('rate limit exceeded', 429)
-            return jsonify(sess.to_dict())
+            payload, code = self.engine.get_context(sid, request)
+            return respond(payload, code)
 
-        # POST /action/<sid>
-        @app.route(f'{prefix}/action/<sid>', methods=['POST'])
+        @app.route(f'{self.prefix}/action/<sid>', methods=['POST'])
         def _hpp_action(sid):
-            sess = self.store.get(sid)
-            if not sess:
-                return err('session not found or expired', 404)
-            if not self._check_token(sess, request):
-                return err('invalid token', 403)
-            if not sess.check_rate_limit():
-                return err('rate limit exceeded', 429)
-
-            body     = request.get_json(force=True, silent=True) or {}
-            actions  = body.get('actions', [])
-            stream   = body.get('stream', True)
-            interval = max(0, body.get('intervalMs', 300)) / 1000.0
-
-            applied  = []
-            rejected = []
-            errors   = []
-
-            for act in actions:
-                if act.get('type') != 'set':
-                    errors.append({'action': act, 'msg': 'unsupported action type'})
-                    continue
-                key   = act.get('key')
-                value = act.get('value')
-                if key is None:
-                    errors.append({'action': act, 'msg': 'missing key'})
-                    continue
-
-                # 钩子：业务可以拒绝某个 action
-                veto = False
-                for cb in self._on_action_callbacks:
-                    try:
-                        result = cb(sess, act, request)
-                        if result is False:
-                            veto = True
-                            break
-                    except Exception as e:
-                        errors.append({'key': key, 'msg': str(e)})
-                        veto = True
-                        break
-                if veto:
-                    rejected.append(key)
-                    continue
-
-                # schema 类型校验
-                ok, msg = sess.validate_value(key, value)
-                if not ok:
-                    errors.append({'key': key, 'msg': msg})
-                    continue
-
-                # 写入（AI 不得覆盖用户字段）
-                ok = sess.set_value(key, value, 'ai')
-                if not ok:
-                    rejected.append(key)
-                    continue
-
-                applied.append(key)
-                if stream:
-                    sess.broadcast({'type': EVT_ACTION, 'key': key, 'value': value})
-                    if interval > 0:
-                        time.sleep(interval)
-
-            missing = sess.get_missing()
-            sess.broadcast({
-                'type':     EVT_DONE,
-                'applied':  len(applied),
-                'rejected': rejected,
-                'missing':  missing,
-            })
-
-            for cb in self._on_done_callbacks:
-                try:
-                    cb(sess, applied, rejected, errors)
-                except Exception:
-                    pass
-
-            return jsonify({
-                'ok':       True,
-                'applied':  applied,
-                'rejected': rejected,
-                'errors':   errors,
-                'missing':  missing,
-                'context':  sess.get_context(),
-            })
-
-        # POST /notify/<sid>
-        @app.route(f'{prefix}/notify/<sid>', methods=['POST'])
-        def _hpp_notify(sid):
-            sess = self.store.get(sid)
-            if not sess:
-                return err('session not found or expired', 404)
-            # 浏览器身份校验（可选 hook）
-            if self.require_browser_auth is not None:
-                if not self.require_browser_auth(request, sess):
-                    return err('browser auth failed', 403)
-            body  = request.get_json(force=True, silent=True) or {}
-            key   = body.get('key')
-            value = body.get('value')
-            if key is None:
-                return err('key is required')
-            sess.set_value(key, value, 'user')
-            return jsonify({'ok': True})
-
-        # GET /diff/<sid>
-        @app.route(f'{prefix}/diff/<sid>', methods=['GET'])
-        def _hpp_diff(sid):
-            sess = self.store.get(sid)
-            if not sess:
-                return err('session not found or expired', 404)
-            if not self._check_token(sess, request):
-                return err('invalid token', 403)
-            if not sess.check_rate_limit():
-                return err('rate limit exceeded', 429)
-            since = request.args.get('since', '')
-            changes = sess.get_diff_since(since) if since else sess.changes[-50:]
-            return jsonify({'sessionId': sid, 'since': since, 'changes': changes})
-
-        # POST /session/<sid>/extend
-        @app.route(f'{prefix}/session/<sid>/extend', methods=['POST'])
-        def _hpp_extend(sid):
-            """
-            动态延长 Token 有效期。
-            适用于长任务：批量数据录入、多轮 Agent 协作、智能硬件长会话等。
-
-            Body JSON:
-              extraSeconds: int  — 额外延长的秒数（默认 1800，即再延长 30 分钟）
-
-            鉴权：Agent 侧调用，需 X-Handshake-Token；
-                  服务端也可在 on_extend hook 里自行决策是否允许延长。
-            """
-            sess = self.store.get(sid)
-            if not sess:
-                return err('session not found or expired', 404)
-            if not self._check_token(sess, request):
-                return err('invalid token', 403)
-
             body = request.get_json(force=True, silent=True) or {}
-            extra = int(body.get('extraSeconds', 1800))
-            if extra <= 0 or extra > 86400:    # 单次最多延长 24 小时
-                return err('extraSeconds must be between 1 and 86400')
+            payload, code = self.engine.post_action(sid, body, request)
+            return respond(payload, code)
 
-            # 钩子：服务端可覆盖延长逻辑（例如：限制最大 TTL、需要额外权限）
-            for cb in self._on_extend_callbacks:
-                try:
-                    result = cb(sess, extra, request)
-                    if result is False:
-                        return err('extension denied by server policy', 403)
-                    if isinstance(result, int) and result > 0:
-                        extra = result   # 钩子可调整实际延长时间
-                except Exception as e:
-                    return err(str(e), 403)
+        @app.route(f'{self.prefix}/notify/<sid>', methods=['POST'])
+        def _hpp_notify(sid):
+            body = request.get_json(force=True, silent=True) or {}
+            payload, code = self.engine.post_notify(
+                sid, body, request, self.require_browser_auth)
+            return respond(payload, code)
 
-            new_expires = sess.extend(extra)
+        @app.route(f'{self.prefix}/diff/<sid>', methods=['GET'])
+        def _hpp_diff(sid):
+            payload, code = self.engine.get_diff(sid, request)
+            return respond(payload, code)
 
-            # 通知浏览器 token 已延长
-            sess.broadcast({'type': 'extended', 'expiresIn': new_expires})
+        @app.route(f'{self.prefix}/session/<sid>/extend', methods=['POST'])
+        def _hpp_extend(sid):
+            body = request.get_json(force=True, silent=True) or {}
+            payload, code = self.engine.post_extend(sid, body, request)
+            return respond(payload, code)
 
-            return jsonify({
-                'ok':        True,
-                'extended':  extra,
-                'expiresIn': new_expires,
-            })
-
-        # WS /ws/handshake/<sid>
         @sock.route(f'{self.ws_prefix}/<sid>')
         def _hpp_ws(ws, sid):
-            sess = self.store.get(sid)
-            if not sess:
-                ws.send(json.dumps({'type': EVT_ERROR, 'msg': 'session not found'}))
-                ws.close()
-                return
-
-            token = self._parse_ws_token(ws)
-            if not token or not secrets.compare_digest(token, sess.token):
-                ws.send(json.dumps({'type': EVT_ERROR, 'msg': 'invalid token'}))
-                ws.close()
-                return
-
-            sess.ws_clients.add(ws)
-            ws.send(json.dumps({
-                'type':      EVT_CONNECTED,
-                'sessionId': sid,
-                'mode':      sess.mode,
-            }))
-
-            try:
-                while True:
-                    raw = ws.receive(timeout=60)
-                    if raw is None:
-                        break
-                    try:
-                        msg = json.loads(raw)
-                    except Exception:
-                        continue
-                    if msg.get('type') == 'userEdit':
-                        key   = msg.get('key')
-                        value = msg.get('value')
-                        if key is not None:
-                            sess.set_value(key, value, 'user')
-            except Exception:
-                pass
-            finally:
-                sess.ws_clients.discard(ws)
+            self.engine.handle_ws(ws, sid)

@@ -1,6 +1,9 @@
 # encoding=utf-8
 """
-Session 对象 - 一个握手会话的完整状态
+Session — core network state for a single HPP handshake.
+
+Transport concerns (sid, token, TTL, rate limit, WebSocket broadcast) live here.
+Mode-specific data handling is delegated to mode handlers in modes/.
 """
 import json
 import re
@@ -15,7 +18,7 @@ def _now_iso():
 
 
 def _validate_type(value, ftype):
-    """简易类型校验，可被 HandshakeManager(validator=...) 覆盖"""
+    """Default type validator used by form-fill mode."""
     if ftype in ('string', 'str'):
         return isinstance(value, str)
     if ftype in ('int', 'integer'):
@@ -34,34 +37,24 @@ def _validate_type(value, ftype):
 
 class Session:
     """
-    单个握手会话。
+    A single handshake session.
 
-    存储：
-      - sid / token       会话标识 + 一次性访问令牌
-      - schema            字段定义 list[dict]
-      - values            当前值 {key: {value, by, at}}
-      - changes           变更历史 (最近 200)
-      - ws_clients        订阅的 WebSocket 集合
+    Core fields (all modes):
+      sid, token, mode, meta, owner, ttl, changes, ws_clients
 
-    by 字段含义：
-      - 'empty'      未填
-      - 'user'       用户主动填写
-      - 'ai'         Agent 填写
-      - 'user_edit'  AI 填后被用户修改
-
-    安全：
-      - AI 不能覆盖 by=user 或 by=user_edit 的字段（在 set_value 中强制）
+    Form-fill mode additionally uses:
+      schema, values (with by/at provenance)
     """
 
     def __init__(self, sid, mode='default', schema=None, context=None,
                  ttl=1800, rate_limit_per_min=60,
                  owner=None, meta=None, validator=None):
         self.sid           = sid
-        self.token         = secrets.token_urlsafe(24)     # 192 bit
+        self.token         = secrets.token_urlsafe(24)
         self.mode          = mode
         self.schema        = schema or []
-        self.owner         = owner       # 任意类型，用于绑定创建者身份
-        self.meta          = dict(meta or {})    # 任意业务元数据
+        self.owner         = owner
+        self.meta          = dict(meta or {})
         self.ttl           = ttl
         self.created_at    = time.time()
         self.touched_at    = time.time()
@@ -69,20 +62,19 @@ class Session:
         self._rate_limit = rate_limit_per_min
         self._rate_window = deque()
         self._validator = validator or _validate_type
+        self._now_iso = _now_iso
 
-        # 字段值
         self.values = {}
+        self.data = {}
         for key, val in (context or {}).items():
             by = 'user' if val not in (None, '', [], {}) else 'empty'
             self.values[key] = {'value': val, 'by': by, 'at': _now_iso()}
+            self.data[key] = val
 
-        # 变更历史
         self.changes = []
-
-        # 订阅广播的 WebSocket
         self.ws_clients = set()
 
-    # ── 生命周期 ─────────────────────────────────────────
+    # ── lifecycle ────────────────────────────────────────
 
     def touch(self):
         self.touched_at = time.time()
@@ -94,22 +86,11 @@ class Session:
         return max(0, int(self.ttl - (time.time() - self.touched_at)))
 
     def extend(self, extra_seconds):
-        """
-        动态延长 Token 有效期。
-        适用于长任务：批量数据录入、多轮 Agent 协作、智能硬件长会话等。
-
-        Args:
-            extra_seconds: 在当前剩余时间基础上再延长的秒数。
-                           例如 extend(1800) 表示再延长 30 分钟。
-
-        Returns:
-            新的剩余秒数。
-        """
         self.ttl += extra_seconds
         self.touch()
         return self.expires_in()
 
-    # ── 频率限制 ─────────────────────────────────────────
+    # ── rate limit ───────────────────────────────────────
 
     def check_rate_limit(self):
         now = time.time()
@@ -120,36 +101,23 @@ class Session:
         self._rate_window.append(now)
         return True
 
-    # ── 数据 ────────────────────────────────────────────
+    # ── form-fill helpers (used by FormFillHandler) ──────
 
     def set_value(self, key, value, source):
-        """
-        设置字段。source ∈ {'ai', 'user'}
-
-        AI 试图覆盖 by=user / user_edit 时返回 False（不修改）。
-        用户修改 AI 填的字段时，by 自动升级为 user_edit。
-        """
         current_by = self.values.get(key, {}).get('by', 'empty')
-
         if source == 'ai' and current_by in ('user', 'user_edit'):
             return False
-
         if source == 'user' and current_by == 'ai':
             source = 'user_edit'
 
         old = self.values.get(key, {}).get('value')
         now = _now_iso()
         self.values[key] = {'value': value, 'by': source, 'at': now}
-        self.changes.append({
-            'key': key, 'from': old, 'to': value, 'by': source, 'at': now,
-        })
-        if len(self.changes) > 200:
-            self.changes.pop(0)
-        self.touch()
+        self.data[key] = value
+        self.record_change(key, old, value, source)
         return True
 
     def validate_value(self, key, value):
-        """根据 schema 校验单个字段值，返回 (ok, msg)"""
         field_def = next((f for f in self.schema if f.get('key') == key), None)
         if not field_def:
             return True, None
@@ -163,21 +131,26 @@ class Session:
         return True, None
 
     def get_context(self):
-        """完整上下文快照"""
         return {k: v.copy() for k, v in self.values.items()}
 
-    def get_diff_since(self, since_iso):
-        return [c for c in self.changes if c['at'] > since_iso]
-
     def get_missing(self):
-        """必填且未填的字段 key 列表"""
         return [
             f['key'] for f in self.schema
             if f.get('required')
             and self.values.get(f['key'], {}).get('value') in (None, '', [], {})
         ]
 
-    # ── WebSocket 广播 ──────────────────────────────────
+    def record_change(self, key, old, new, by):
+        now = _now_iso()
+        self.changes.append({'key': key, 'from': old, 'to': new, 'by': by, 'at': now})
+        if len(self.changes) > 200:
+            self.changes.pop(0)
+        self.touch()
+
+    def get_diff_since(self, since_iso):
+        return [c for c in self.changes if c['at'] > since_iso]
+
+    # ── WebSocket ────────────────────────────────────────
 
     def broadcast(self, msg):
         dead = set()
@@ -189,18 +162,23 @@ class Session:
                 dead.add(ws)
         self.ws_clients -= dead
 
-    # ── 序列化 ──────────────────────────────────────────
+    # ── serialization ────────────────────────────────────
 
     def to_dict(self, include_token=False):
         out = {
-            'sessionId':  self.sid,
-            'mode':       self.mode,
-            'schema':     self.schema,
-            'context':    self.get_context(),
-            'missing':    self.get_missing(),
-            'meta':       self.meta,
-            'expiresIn':  self.expires_in(),
+            'sessionId': self.sid,
+            'mode':      self.mode,
+            'meta':      self.meta,
+            'expiresIn': self.expires_in(),
         }
+        if self.mode == 'form-fill':
+            out.update({
+                'schema':  self.schema,
+                'context': self.get_context(),
+                'missing': self.get_missing(),
+            })
+        else:
+            out['data'] = dict(self.data)
         if include_token:
             out['token'] = self.token
         return out

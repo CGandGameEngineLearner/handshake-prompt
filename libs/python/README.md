@@ -1,8 +1,37 @@
 # handshake-prompt (Python Server SDK)
 
-> Server-side SDK for the **Handshake Prompt Protocol (HPP)** — a lightweight
-> way to grant any AI Agent access to your web service via a single
-> copy-paste prompt. No API keys, no MCP servers, no env vars for end users.
+> Core network component for the **Handshake Prompt Protocol (HPP)** —
+> session pairing, token auth, HTTP + WebSocket transport.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────┐
+│  Application (your service)           │
+│  form-fill UI, device pairing, etc.     │
+└──────────────────┬──────────────────────┘
+                   │ hooks + mode handlers
+┌──────────────────▼──────────────────────┐
+│  handshake_prompt (this package)        │
+│  ProtocolEngine · Session · SessionStore│
+│  auth · Flask adapter (HandshakeManager)│
+└──────────────────┬──────────────────────┘
+                   │
+         HTTP / WebSocket + X-Handshake-Token
+```
+
+**Core transport** (always included):
+- Session creation with 128-bit sid + 192-bit token
+- Token auth on all Agent endpoints
+- Rate limiting, TTL, dynamic extension
+- WebSocket real-time push
+
+**Application plugins** (optional, in `handshake_prompt.modes`):
+- `form-fill` — schema validation, field ownership, missing-field detection
+- `default` — opaque key/value context for generic Agent interactions
+
+Prompt text generation is **not** part of the core transport — use
+`handshake_prompt.prompt.build_prompt()` if you want a default template.
 
 ## Install
 
@@ -19,120 +48,90 @@ from handshake_prompt import HandshakeManager
 
 app  = Flask(__name__)
 sock = Sock(app)
-hm   = HandshakeManager(app, sock)   # done! HPP endpoints are now mounted.
+hm   = HandshakeManager(app, sock)   # HPP endpoints mounted
 
 if __name__ == '__main__':
     app.run(port=5000)
 ```
 
-That's it. Your service now exposes:
+Endpoints (default prefix `/handshake`):
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/handshake/session`        | POST | Browser creates a handshake session |
-| `/handshake/context/<sid>`  | GET  | Agent reads current state (token-auth) |
-| `/handshake/action/<sid>`   | POST | Agent submits actions (token-auth) |
-| `/handshake/notify/<sid>`   | POST | Browser reports user edits |
-| `/handshake/diff/<sid>`     | GET  | Agent fetches incremental changes |
-| `/ws/handshake/<sid>`       | WS   | Real-time push channel (token-auth) |
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/handshake/session`        | POST | Browser cookie (your app) | Create session |
+| `/handshake/context/<sid>`  | GET  | X-Handshake-Token | Agent reads state |
+| `/handshake/action/<sid>`   | POST | X-Handshake-Token | Agent submits actions |
+| `/handshake/notify/<sid>`   | POST | Browser (optional) | User-side edits |
+| `/handshake/diff/<sid>`     | GET  | X-Handshake-Token | Incremental changes |
+| `/ws/handshake/<sid>`       | WS   | ?token= | Real-time push |
 
-## Build a handshake prompt
+## Using without Flask
 
 ```python
-prompt_text = hm.build_prompt(session, base_url='https://your-service.com')
-# Display this text in the UI, let user copy-paste it to their Agent.
+from handshake_prompt import ProtocolEngine, SessionStore
+
+store = SessionStore()
+engine = ProtocolEngine(store=store, prefix='/api/pair')
+
+payload, code = engine.create_session({'mode': 'device-pair', 'data': {}})
+# Wire payload/code into your own framework adapter
 ```
 
-## Configure schema
-
-Schemas describe what fields the Agent should fill. Sent by the browser
-when creating a session:
+## Form-fill mode (optional plugin)
 
 ```json
 {
   "mode": "form-fill",
   "schema": [
-    {"key": "name",  "label": "Name",  "type": "string", "required": true, "example": "Alice"},
-    {"key": "age",   "label": "Age",   "type": "int",    "example": 30},
-    {"key": "vip",   "label": "VIP",   "type": "bool"}
+    {"key": "name", "label": "Name", "type": "string", "required": true}
   ],
-  "context": {}    // current state, used by browser to pre-populate
+  "context": {}
 }
 ```
 
-Supported types: `string` / `int` / `float` / `bool` / `datetime` /
-`array<string>` / `enum`. Custom validators can be plugged in via
-`HandshakeManager(validator=...)`.
+## Custom mode handler
+
+```python
+from handshake_prompt.modes import DEFAULT_HANDLERS
+
+class MyHandler:
+    def setup_session(self, sess, body): ...
+    def context_response(self, sess): ...
+    def process_actions(self, sess, actions, stream, interval, cbs, broadcast): ...
+    def process_notify(self, sess, key, value): ...
+    def process_ws_message(self, sess, msg): ...
+
+hm = HandshakeManager(app, sock, mode_handlers={
+    **DEFAULT_HANDLERS,
+    'my-mode': MyHandler(),
+})
+```
 
 ## Hooks
-
-Attach custom logic at key lifecycle points:
 
 ```python
 @hm.on_create_session
 def bind_owner(sess, request):
-    """Bind a session to the current logged-in user"""
-    from flask import session as flask_session
     sess.owner = flask_session.get('user_id')
 
 @hm.on_action
 def audit(sess, action, request):
-    """Audit every action; return False to veto"""
-    print(f'[AUDIT] sid={sess.sid} user={sess.owner} action={action}')
-
-@hm.on_done
-def notify_done(sess, applied, rejected, errors):
-    """Called after each batch of actions"""
-    pass
+    return True  # return False to veto
 
 @hm.on_extend
-def control_extension(sess, extra_seconds, request):
-    """Control dynamic TTL extension for long-running tasks"""
-    # Return False to reject; return an int to cap/adjust the extension.
+def cap_extension(sess, extra_seconds, request):
     return min(extra_seconds, 1800)
-```
-
-## Dynamic TTL extension
-
-Sessions expire after 30 minutes by default, but long-running tasks can
-request an extension:
-
-```http
-POST /handshake/session/<sid>/extend
-X-Handshake-Token: <token>
-Content-Type: application/json
-
-{"extraSeconds": 1800}
-```
-
-The server can accept, reject, or cap the extension via `@hm.on_extend`.
-This makes HPP suitable for both short one-off tasks and longer, supervised
-Agent workflows.
-
-## Browser auth for `/notify`
-
-By default `/notify/<sid>` accepts any request (it's only used by
-browsers within the same origin). For stricter setups, supply a callable:
-
-```python
-def my_auth(request, sess):
-    return flask_session.get('user_id') == sess.owner
-
-hm = HandshakeManager(app, sock, require_browser_auth=my_auth)
 ```
 
 ## Security defaults
 
-- **Token entropy**: 192 bits (`secrets.token_urlsafe(24)`)
-- **Session ID entropy**: 128 bits (`secrets.token_hex(16)`)
-- **Timing-safe comparison**: `secrets.compare_digest`
-- **TTL**: 30 minutes default, configurable, dynamically extendable
-- **Rate limit**: 60 requests / minute / session
-- **User-data protection**: AI **cannot** overwrite fields marked
-  `by=user` or `by=user_edit`
-- **WebSocket auth**: connection-time token verification
+- Token: 192-bit entropy, timing-safe comparison
+- Session ID: 128-bit entropy
+- TTL: 30 min default, dynamically extendable
+- Rate limit: 60 req/min/session
+- WebSocket: token verified at connect time
 
-See `SPEC.md` of the main repository for full protocol details.
+See `SPEC.md` for full protocol details.
 
 ## License
 

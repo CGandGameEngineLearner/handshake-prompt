@@ -32,6 +32,38 @@ That's it. The entire authorization and session handoff happens inside the promp
 
 ---
 
+## Architecture · 架构
+
+HPP is a **network component**, not an application framework. The core layer handles session pairing, token auth, and HTTP/WebSocket transport. Application logic (form schemas, prompt templates, field validation) plugs in via **mode handlers**.
+
+```
+┌─────────────────────────────────────────┐
+│  Your Application                     │
+│  (form UI, OA workflow, device pairing) │
+└──────────────────┬──────────────────────┘
+                   │ hooks + mode handlers
+┌──────────────────▼──────────────────────┐
+│  handshake-prompt (core transport)      │
+│  ProtocolEngine · Session · Token auth  │
+│  HTTP endpoints · WebSocket push        │
+└──────────────────┬──────────────────────┘
+                   │ X-Handshake-Token
+┌──────────────────▼──────────────────────┐
+│  AI Agent (any LLM / CLI / SDK)         │
+└─────────────────────────────────────────┘
+```
+
+| Layer | Package | Responsibility |
+|-------|---------|----------------|
+| **Core transport** | `handshake-prompt` | Session, token, rate limit, WS broadcast |
+| **Mode plugins** | `handshake_prompt.modes` | `form-fill`, `default`, custom handlers |
+| **Prompt templates** | `handshake_prompt.prompt` | Optional text builder (not required) |
+| **Flask adapter** | `HandshakeManager` | Mount routes on existing Flask app |
+| **Browser client** | `handshake-prompt-client` | Session + WebSocket (prompt helper optional) |
+| **Agent client** | `handshake-prompt-agent` | HTTP client + CLI (stdlib only) |
+
+---
+
 ## 这是什么？
 
 **握手提示词（Handshake Prompt）** 是一个开放协议，让任何 AI Agent 代替用户操作现有 Web 服务——**用户无需做任何配置**。
@@ -233,8 +265,11 @@ from handshake_prompt import HandshakeManager
 
 app  = Flask(__name__)
 sock = Sock(app)
-HandshakeManager(app, sock)   # ← HPP 接入完成
+HandshakeManager(app, sock)   # ← core transport mounted
 ```
+
+For non-Flask frameworks, use `ProtocolEngine` directly and wire your own adapter.
+Form-fill, prompt templates, and business hooks are **optional** application layers.
 
 接入后，你的服务自动拥有以下接口：
 
@@ -300,13 +335,17 @@ handshake-prompt/
 │   ├── comparison.md            ← 对比 OAuth / API Key / MCP
 │   └── threat-model.md          ← 安全分析 Security analysis
 ├── libs/
-│   ├── python/                  ← handshake-prompt      (Flask 服务端 SDK)
-│   ├── js/                      ← handshake-prompt-client (浏览器 TypeScript SDK)
-│   └── agent-python/            ← handshake-prompt-agent  (Agent CLI + SDK)
+│   ├── python/                  ← handshake-prompt (core transport + Flask adapter)
+│   │   └── handshake_prompt/
+│   │       ├── protocol.py      ← ProtocolEngine (framework-agnostic)
+│   │       ├── auth.py          ← token extraction / verification
+│   │       ├── modes/           ← application plugins (form-fill, generic, ...)
+│   │       └── prompt.py        ← optional prompt text builder
+│   ├── js/                      ← handshake-prompt-client (browser transport SDK)
+│   └── agent-python/            ← handshake-prompt-agent (Agent HTTP client + CLI)
 └── examples/
-    ├── server-flask/            ← 最小化端到端示例 Minimal end-to-end demo
-    ├── oa-expense-report/       ← OA 报销单示例 OA expense form walkthrough
-    └── skill/                   ← Agent skill 参考文件
+    ├── server-flask/            ← minimal end-to-end demo
+    └── oa-expense-report/       ← OA expense form walkthrough
 ```
 
 ---
@@ -337,6 +376,7 @@ python app.py
 ## Roadmap · 路线图
 
 - [x] v0.1 — Flask 服务端 SDK、TypeScript 浏览器 SDK、Python Agent SDK + CLI
+- [x] v0.2 — 核心传输层与应用层分离（ProtocolEngine + mode handlers）
 - [ ] FastAPI 服务端适配器
 - [ ] Express.js 服务端适配器
 - [ ] React / Vue 组件包

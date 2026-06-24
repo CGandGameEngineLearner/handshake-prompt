@@ -1,7 +1,12 @@
 /**
  * @handshake-prompt/client
  * Framework-agnostic browser SDK for the Handshake Prompt Protocol.
+ *
+ * Core: session creation, WebSocket transport, event subscription.
+ * Prompt generation is in ./prompt.ts (optional application-layer helper).
  */
+
+import { buildHandshakePrompt } from './prompt'
 
 export interface SchemaField {
   key: string
@@ -165,13 +170,10 @@ export class HandshakeClient {
     }).catch(() => {})
   }
 
-  // ── Prompt generation ──────────────────────────────────
+  // ── Prompt generation (optional application helper) ──
 
   /**
-   * Build the handshake prompt text that the user copy-pastes to their Agent.
-   *
-   * @param customInstructions Optional service-specific instructions
-   * @param skillName  Hint Agent which skill to load (e.g. "form-fill")
+   * Build handshake prompt text. Prefer importing buildHandshakePrompt directly.
    */
   buildPrompt(opts: {
     title?: string
@@ -179,31 +181,7 @@ export class HandshakeClient {
     skillName?: string
   } = {}): string {
     if (!this.session) throw new Error('no session; call createSession() first')
-    const { title = 'Handshake Prompt', customInstructions, skillName } = opts
-    const s = this.session
-
-    return [
-      `# ${title}`,
-      ``,
-      `## Credentials`,
-      `- sessionId: ${s.sessionId}`,
-      `- token: ${s.token}`,
-      `- baseUrl: ${this.baseUrl}`,
-      `- expiresIn: ${s.expiresIn}s`,
-      ...(skillName ? [`- skill: ${skillName}`] : []),
-      ``,
-      ...(customInstructions ? [`## Instructions`, customInstructions, ``] : []),
-      `## Usage`,
-      `1. GET  ${this.baseUrl}${s.contextUrl}  (header X-Handshake-Token: <token>)`,
-      `2. POST ${this.baseUrl}${s.actionUrl}   {"actions":[{"type":"set","key":...,"value":...}]}`,
-      ``,
-      `## Security`,
-      `- This token is single-use and expires shortly.`,
-      `- Do NOT forward this prompt to others.`,
-      `- The server will reject any AI attempt to overwrite user-filled fields.`,
-      ``,
-      `## Waiting for user's request...`,
-    ].join('\n')
+    return buildHandshakePrompt(this.session, this.baseUrl, opts)
   }
 
   /**

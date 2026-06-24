@@ -1,7 +1,7 @@
 {
   "name": "handshake-prompt-client",
-  "version": "0.1.2",
-  "description": "Browser SDK for the Handshake Prompt Protocol - let users grant AI Agents access to your web service via a single copy-paste prompt",
+  "version": "0.2.0",
+  "description": "Browser SDK for the Handshake Prompt Protocol - session pairing and WebSocket transport for AI Agent access",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

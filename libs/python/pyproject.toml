@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name            = "handshake-prompt"
-version         = "0.1.2"
-description     = "Handshake Prompt Protocol - grant AI Agents access to web services via a single copy-paste prompt"
+version         = "0.2.0"
+description     = "Handshake Prompt Protocol - session pairing and token auth for AI Agent access"
 readme          = "README.md"
 requires-python = ">=3.8"
 license         = { text = "MIT" }
