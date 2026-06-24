@@ -128,17 +128,19 @@ class HandshakeManager:
             f"- baseUrl: {base_url}",
             f"- mode: {sess.mode}",
             f"- expiresIn: {sess.expires_in()}s",
+            f"- grant: short-lived-by-default, extendable-by-server-policy",
             "",
         ]
         if instructions:
             lines += ["## Instructions", instructions, ""]
         lines += [
             "## Usage",
-            "1. GET  {base}/handshake/context/{sid}   (header X-Handshake-Token: <token>)",
-            "2. POST {base}/handshake/action/{sid}    {\"actions\":[{\"type\":\"set\",\"key\":...,\"value\":...}]}",
+            f"1. GET  {base_url.rstrip('/')}{self.prefix}/context/{sess.sid}   (header X-Handshake-Token: <token>)",
+            f"2. POST {base_url.rstrip('/')}{self.prefix}/action/{sess.sid}    {{\"actions\":[{{\"type\":\"set\",\"key\":...,\"value\":...}}]}}",
+            f"3. POST {base_url.rstrip('/')}{self.prefix}/session/{sess.sid}/extend  {{\"extraSeconds\":1800}}  (optional, long tasks)",
             "",
             "## Security Notes",
-            "- This token is single-use and expires in 30 minutes",
+            f"- This token expires in {sess.expires_in()} seconds by default and can be extended only if the server allows it",
             "- Do NOT forward this prompt to others",
             "- The server will reject any AI attempt to overwrite user-filled fields",
             "",

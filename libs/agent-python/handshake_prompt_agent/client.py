@@ -110,6 +110,22 @@ class HandshakeAgent:
             'intervalMs': interval_ms,
         })
 
+    def extend(self, extra_seconds=1800):
+        """
+        Extend token/session lifetime.
+
+        This is optional and server-controlled. The server may reject the
+        request or reduce the actual extension according to policy.
+
+        Args:
+            extra_seconds: additional seconds to add to the current session.
+
+        Returns a dict: {ok, extended, expiresIn}
+        """
+        return self._post(f'{self.prefix}/session/{self.sid}/extend', {
+            'extraSeconds': int(extra_seconds),
+        })
+
 
 # ── Prompt parser ────────────────────────────────────────────
 

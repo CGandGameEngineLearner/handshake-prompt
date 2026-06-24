@@ -25,6 +25,10 @@ handshake-prompt-agent action --sid <sid> --token <token> --base <url> \
 # Get incremental changes since last submit
 handshake-prompt-agent get-diff --sid <sid> --token <token> --base <url> \
     --since "2026-06-23T10:22:00+08:00"
+
+# Extend the token/session for a long-running task (server may reject or cap it)
+handshake-prompt-agent extend --sid <sid> --token <token> --base <url> \
+    --extra-seconds 1800
 ```
 
 ## Programmatic API
@@ -55,6 +59,11 @@ result = agent.action({
 print(result['applied'])   # fields successfully written
 print(result['rejected'])  # fields blocked (e.g. user already filled)
 print(result['context'])   # full state snapshot after the action
+
+# Long task? Ask the server to extend the session.
+# The server policy decides whether this is allowed.
+extension = agent.extend(extra_seconds=1800)
+print(extension['expiresIn'])
 ```
 
 ## Skill integration

@@ -84,7 +84,30 @@ def audit(sess, action, request):
 def notify_done(sess, applied, rejected, errors):
     """Called after each batch of actions"""
     pass
+
+@hm.on_extend
+def control_extension(sess, extra_seconds, request):
+    """Control dynamic TTL extension for long-running tasks"""
+    # Return False to reject; return an int to cap/adjust the extension.
+    return min(extra_seconds, 1800)
 ```
+
+## Dynamic TTL extension
+
+Sessions expire after 30 minutes by default, but long-running tasks can
+request an extension:
+
+```http
+POST /handshake/session/<sid>/extend
+X-Handshake-Token: <token>
+Content-Type: application/json
+
+{"extraSeconds": 1800}
+```
+
+The server can accept, reject, or cap the extension via `@hm.on_extend`.
+This makes HPP suitable for both short one-off tasks and longer, supervised
+Agent workflows.
 
 ## Browser auth for `/notify`
 
@@ -103,7 +126,7 @@ hm = HandshakeManager(app, sock, require_browser_auth=my_auth)
 - **Token entropy**: 192 bits (`secrets.token_urlsafe(24)`)
 - **Session ID entropy**: 128 bits (`secrets.token_hex(16)`)
 - **Timing-safe comparison**: `secrets.compare_digest`
-- **TTL**: 30 minutes default
+- **TTL**: 30 minutes default, configurable, dynamically extendable
 - **Rate limit**: 60 requests / minute / session
 - **User-data protection**: AI **cannot** overwrite fields marked
   `by=user` or `by=user_edit`

@@ -39,6 +39,11 @@ def cmd_get_diff(args):
     _dump(agent.get_diff(since=args.since))
 
 
+def cmd_extend(args):
+    agent = HandshakeAgent(args.sid, args.token, args.base)
+    _dump(agent.extend(extra_seconds=args.extra_seconds))
+
+
 def cmd_parse_prompt(args):
     text = args.prompt if args.prompt else sys.stdin.read()
     _dump(parse_prompt(text))
@@ -77,6 +82,15 @@ def main():
     p.add_argument('--base', required=True)
     p.add_argument('--since', default='', help='ISO timestamp')
     p.set_defaults(func=cmd_get_diff)
+
+    # extend
+    p = sub.add_parser('extend', help='Extend token/session lifetime')
+    p.add_argument('--sid', required=True)
+    p.add_argument('--token', required=True)
+    p.add_argument('--base', required=True)
+    p.add_argument('--extra-seconds', type=int, default=1800,
+                   help='additional seconds to add (default 1800)')
+    p.set_defaults(func=cmd_extend)
 
     # parse-prompt
     p = sub.add_parser('parse-prompt',
