@@ -24,7 +24,7 @@
 - Session creation with 128-bit sid + 192-bit token
 - Token auth on all Agent endpoints
 - Rate limiting, TTL, dynamic extension
-- WebSocket real-time push
+- WebSocket real-time push with idle heartbeat keepalive
 
 **Application plugins** (optional, in `handshake_prompt.modes`):
 - `form-fill` — schema validation, field ownership, missing-field detection
@@ -64,6 +64,21 @@ Endpoints (default prefix `/handshake`):
 | `/handshake/notify/<sid>`   | POST | Browser (optional) | User-side edits |
 | `/handshake/diff/<sid>`     | GET  | X-Handshake-Token | Incremental changes |
 | `/ws/handshake/<sid>`       | WS   | ?token= | Real-time push |
+
+`/action` responses include a `broadcast` diagnostic block:
+
+```json
+{
+  "broadcast": {
+    "clients": 1,
+    "actionMessages": 3,
+    "doneMessages": 1
+  }
+}
+```
+
+Use it to distinguish successful data writes from cases where no browser
+WebSocket is currently connected.
 
 ## Using without Flask
 

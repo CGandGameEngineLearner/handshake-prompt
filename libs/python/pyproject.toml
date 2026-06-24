@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name            = "handshake-prompt"
-version         = "0.2.0"
+version         = "0.2.1"
 description     = "Handshake Prompt Protocol - session pairing and token auth for AI Agent access"
 readme          = "README.md"
 requires-python = ">=3.8"
@@ -25,7 +25,7 @@ classifiers     = [
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "flask>=2.0",
+    "flask>=2.0,<3",
     "flask-sock>=0.7.0",
 ]
 

@@ -15,6 +15,7 @@ EVT_CONNECTED = 'connected'
 EVT_ACTION    = 'action'
 EVT_DONE      = 'done'
 EVT_ERROR     = 'error'
+EVT_HEARTBEAT = 'heartbeat'
 
 
 class ProtocolEngine:
@@ -124,14 +125,21 @@ class ProtocolEngine:
         wrapped_cbs = [lambda s, a, r, _cb=cb: _cb(s, a, request)
                        for cb in self._on_action_callbacks]
 
+        broadcast_counts = []
+
+        def tracked_broadcast(msg):
+            sent = sess.broadcast(msg)
+            broadcast_counts.append(sent)
+            return sent
+
         applied, rejected, errors, extra = handler.process_actions(
             sess, actions, stream, interval,
             wrapped_cbs,
-            self._broadcast(sess),
+            tracked_broadcast,
         )
 
         missing = extra.get('missing', [])
-        sess.broadcast({
+        done_sent = sess.broadcast({
             'type':     EVT_DONE,
             'applied':  len(applied),
             'rejected': rejected,
@@ -149,6 +157,11 @@ class ProtocolEngine:
             'applied':  applied,
             'rejected': rejected,
             'errors':   errors,
+            'broadcast': {
+                'clients': len(sess.ws_clients),
+                'actionMessages': sum(broadcast_counts),
+                'doneMessages': done_sent,
+            },
         }
         result.update(extra)
         return result, 200
@@ -233,7 +246,11 @@ class ProtocolEngine:
             while True:
                 raw = ws.receive(timeout=60)
                 if raw is None:
-                    break
+                    try:
+                        ws.send(json.dumps({'type': EVT_HEARTBEAT}))
+                    except Exception:
+                        break
+                    continue
                 try:
                     msg = json.loads(raw)
                 except Exception:

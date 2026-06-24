@@ -155,12 +155,15 @@ class Session:
     def broadcast(self, msg):
         dead = set()
         payload = json.dumps(msg, ensure_ascii=False)
+        sent = 0
         for ws in list(self.ws_clients):
             try:
                 ws.send(payload)
+                sent += 1
             except Exception:
                 dead.add(ws)
         self.ws_clients -= dead
+        return sent
 
     # ── serialization ────────────────────────────────────
 

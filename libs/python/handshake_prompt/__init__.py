@@ -25,7 +25,7 @@ from .protocol import ProtocolEngine
 from .manager import HandshakeManager
 from .prompt import build_prompt
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __all__ = [
     "HandshakeManager",
     "ProtocolEngine",
