@@ -62,16 +62,47 @@ Connecting an AI Agent to a legacy web service today requires users to:
 - **OAuth**：click through consent flows, manage refresh tokens · 走授权流程、管理刷新令牌
 - **MCP Server**：install a binary, edit JSON config, manage a daemon — per service · 安装后台服务、编辑配置、每个系统都来一次
 
+And beyond setup friction, there's a deeper problem: **permission ambiguity**.  
+除了配置繁琐，还有一个更深层的问题：**权限边界模糊**。
+
+API Keys and Access Tokens require the user to manually define what the Agent *can* and *cannot* do —
+a complex permission matrix that most users don't understand, often set too broadly "just to make it work."  
+API Key 和 Access Token 需要用户手动配置这个凭证能做什么、不能做什么——
+这是一套复杂的权限矩阵，大多数用户并不理解，往往为了"让它能用"而授予过宽的权限。
+
+The result: **accountability is blurry**. A leaked key can be exploited indefinitely across many services.  
+结果就是：**权责不清晰**。一个泄露的 Key 可以被无限期用于多个服务。
+
 **This friction kills adoption. Most users never get through it.**  
 **这些门槛直接劝退了大多数用户。**
 
 ### The solution · 握手提示词的解法
 
+Handshake Prompt takes a fundamentally different approach, inspired by QR-code login:  
+握手提示词采用了完全不同的思路，灵感来自二维码登录：
+
+> **一段握手提示词 = 一个服务 + 一次授权 + 用完即失效**
+>
+> **One handshake prompt = One service + One authorization + Expires when done**
+
+- **No permission configuration needed** — the prompt itself *is* the scope. It grants access to exactly one service operation, nothing more.  
+  **无需配置权限** — 提示词本身就是授权范围。它精确对应一个服务操作，仅此而已。
+
+- **Like a QR code, not a password** — you don't configure what a QR code "can do"; it does one thing and expires.  
+  **像二维码，不像密码** — 你不需要配置二维码"能做什么"，它做一件事然后失效。
+
+- **Agent's fence is fixed** — the Agent operates only within the session created by the user's click. It cannot drift to other services, other users, or other operations.  
+  **Agent 的围栏是固定的** — Agent 只能在用户点击创建的这个会话范围内操作，无法越界到其他服务、其他用户或其他操作。
+
+- **User confirms before anything saves** — the Agent fills, the user reviews, the user submits. The human is always the last gate.  
+  **用户确认才保存** — Agent 填写，用户审查，用户提交。人始终是最后一道关卡。
+
 | | API Key | OAuth | MCP | **Handshake Prompt · 握手提示词** |
 |--|:-------:|:-----:|:---:|:--------------------:|
 | 用户配置步骤 User setup steps | 3–5 | 2–3 | 5–10 | **1** |
+| 需要配置权限范围 Requires permission config | ✅ 复杂 | ✅ 复杂 | ✅ 复杂 | **❌ 不需要** |
+| 精确对应单一任务 Scoped to single task | ❌ | ❌ | ❌ | **✅** |
 | 自动过期 Expires automatically | ❌ | ❌ | ❌ | **✅** |
-| 单任务授权 Scoped to single task | ❌ | ❌ | ❌ | **✅** |
 | 适配任意 Agent Works with any Agent | ✅ | ✅ | MCP-only | **✅** |
 | 用户实时看到 Agent 操作 User sees Agent work live | ❌ | ❌ | ❌ | **✅** |
 | 后端接入成本 Backend integration cost | medium | heavy | heavy | **3 lines · 3行代码** |
