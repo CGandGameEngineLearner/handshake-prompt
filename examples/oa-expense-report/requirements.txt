@@ -1,2 +1,0 @@
-handshake-prompt>=0.1.0
-flask-cors>=3.0

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Handshake Prompt Demo</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #222; }
+  h2 { margin-top: 0; }
+  button { padding: 8px 16px; border: 0; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 6px 4px 6px 0; }
+  .btn-hpp { background: #fb8500; color: #fff; }
+  pre { background: #f5f5f5; padding: 12px; border-radius: 4px; font-size: 12px;
+        white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; display: none; }
+  #log { font-size: 12px; color: #6e7781; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h2>🤝 Handshake Prompt Demo</h2>
+<p style="font-size:13px;color:#555">
+Click "New Session", copy the prompt to your AI Agent, and the Agent can interact with this page in real time.
+</p>
+
+<button class="btn-hpp" onclick="startSession()">🤖 New Session</button>
+<pre id="prompt"></pre>
+<div id="log"></div>
+
+<script type="module">
+import { HandshakeClient } from 'https://cdn.jsdelivr.net/npm/handshake-prompt-client@0.1/+esm'
+
+const hpp = new HandshakeClient()
+
+window.startSession = async function() {
+  log('Creating session...')
+  await hpp.createSession()
+
+  hpp.on('connected', () => log('✅ Agent connected via WebSocket'))
+  hpp.on('action',  ({ key, value }) => log(`📝 Agent set "${key}" = ${JSON.stringify(value)}`))
+  hpp.on('done',    ({ applied }) => log(`✅ Agent finished (${applied} actions)`))
+  hpp.on('error',   ({ msg }) => log(`❌ ${msg}`))
+  hpp.connect()
+
+  const promptBox = document.getElementById('prompt')
+  promptBox.textContent = hpp.buildPrompt({ title: 'Demo Session' })
+  promptBox.style.display = 'block'
+  try { await navigator.clipboard.writeText(promptBox.textContent) } catch {}
+  log('✅ Session ready — prompt copied to clipboard, paste it to your Agent')
+  log(`   sessionId: ${hpp.session.sessionId}`)
+}
+
+function log(msg) {
+  const el = document.getElementById('log')
+  el.textContent += msg + '\n'
+}
+</script>
+</body>
+</html>
