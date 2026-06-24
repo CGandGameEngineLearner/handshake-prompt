@@ -9,7 +9,11 @@
 [![PyPI](https://img.shields.io/badge/PyPI-handshake--prompt--agent-blue)](https://pypi.org/project/handshake-prompt-agent/)
 [![npm](https://img.shields.io/badge/npm-handshake--prompt--client-red)](https://www.npmjs.com/package/handshake-prompt-client)
 
-[English](#what-is-it) · [中文](#这是什么)
+[Website & Live Demo](http://www.handshake-prompt.tech) · [English](#what-is-it) · [中文](#这是什么)
+
+> **Live demo:** open [http://www.handshake-prompt.tech](http://www.handshake-prompt.tech), create a handshake prompt, paste it to your Agent, and watch the Agent fill the web form in real time.
+>
+> **在线演示：** 打开 [http://www.handshake-prompt.tech](http://www.handshake-prompt.tech)，创建握手提示词，复制给你的 Agent，即可实时看到 Agent 填写网页表单。
 
 ---
 
@@ -420,6 +424,12 @@ handshake-prompt/
 ---
 
 ## Run the demo · 运行示例
+
+Try the hosted bilingual introduction site and live form-fill demo first:
+
+先体验在线双语介绍页和真实表单填写演示：
+
+**http://www.handshake-prompt.tech**
 
 ```bash
 git clone https://github.com/CGandGameEngineLearner/handshake-prompt
