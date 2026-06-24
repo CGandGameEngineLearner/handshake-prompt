@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -12,6 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check NPM_TOKEN
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "::error::NPM_TOKEN secret is not configured."
+            echo "See docs/ci-secrets.md for setup instructions."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -19,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: libs/js
-        run: npm install
+        run: npm ci
 
       - name: Build
         working-directory: libs/js
