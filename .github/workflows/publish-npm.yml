@@ -1,4 +1,4 @@
-name: Publish @handshake-prompt/client to npm
+name: Publish handshake-prompt-client to npm
 
 on:
   push:
@@ -14,12 +14,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install & build
+      - name: Install dependencies
         working-directory: libs/js
-        run: npm install && npm run build
+        run: npm install
+
+      - name: Build
+        working-directory: libs/js
+        run: npm run build
 
       - name: Publish to npm
         working-directory: libs/js

@@ -1,5 +1,5 @@
 {
-  "name": "@handshake-prompt/client",
+  "name": "handshake-prompt-client",
   "version": "0.1.0",
   "description": "Browser SDK for the Handshake Prompt Protocol - let users grant AI Agents access to your web service via a single copy-paste prompt",
   "type": "module",

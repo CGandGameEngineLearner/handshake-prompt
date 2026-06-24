@@ -1,4 +1,4 @@
-# @handshake-prompt/client
+# handshake-prompt-client
 
 > Browser SDK for the **Handshake Prompt Protocol (HPP)** —
 > grant AI Agents access to your web service via a single copy-paste prompt.
@@ -8,13 +8,13 @@ Framework-agnostic. Works with plain JS, React, Vue, Svelte, etc.
 ## Install
 
 ```bash
-npm i @handshake-prompt/client
+npm i handshake-prompt-client
 ```
 
 ## Quick start
 
 ```ts
-import { HandshakeClient } from '@handshake-prompt/client'
+import { HandshakeClient } from 'handshake-prompt-client'
 
 const hpp = new HandshakeClient()
 
@@ -109,7 +109,7 @@ const text = hpp.buildPrompt({
 ```vue
 <script setup>
 import { ref, onUnmounted } from 'vue'
-import { HandshakeClient } from '@handshake-prompt/client'
+import { HandshakeClient } from 'handshake-prompt-client'
 
 const hpp = new HandshakeClient()
 const status = ref('idle')

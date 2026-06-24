@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-handshake--prompt-blue)](https://pypi.org/project/handshake-prompt/)
-[![npm](https://img.shields.io/badge/npm-@handshake--prompt/client-red)](https://www.npmjs.com/package/@handshake-prompt/client)
+[![npm](https://img.shields.io/badge/npm-@handshake--prompt/client-red)](https://www.npmjs.com/package/handshake-prompt-client)
 
 ---
 
@@ -61,7 +61,7 @@ Open <http://localhost:5000>, click "🤖 AI Fill", paste the prompt to your AI 
 | Package | Role | Install |
 |---------|------|---------|
 | [`handshake-prompt`](libs/python)              | Server (Python / Flask) | `pip install handshake-prompt` |
-| [`@handshake-prompt/client`](libs/js)          | Browser (any framework) | `npm i @handshake-prompt/client` |
+| [`handshake-prompt-client`](libs/js)          | Browser (any framework) | `npm i handshake-prompt-client` |
 | [`handshake-prompt-agent`](libs/agent-python)  | Agent-side client/CLI   | `pip install handshake-prompt-agent` |
 
 ### Server (Python, 3 lines)
@@ -79,7 +79,7 @@ HandshakeManager(app, sock)   # done.
 ### Browser (JS)
 
 ```ts
-import { HandshakeClient } from '@handshake-prompt/client'
+import { HandshakeClient } from 'handshake-prompt-client'
 
 const hpp = new HandshakeClient()
 await hpp.createSession({ mode: 'form-fill', schema: [...], context: {...} })
@@ -111,7 +111,7 @@ handshake-prompt/
 │   └── threat-model.md         ← Security analysis
 ├── libs/
 │   ├── python/                 ← handshake-prompt (server SDK)
-│   ├── js/                     ← @handshake-prompt/client (browser SDK)
+│   ├── js/                     ← handshake-prompt-client (browser SDK)
 │   └── agent-python/           ← handshake-prompt-agent (Agent SDK)
 └── examples/
     ├── server-flask/           ← Minimal end-to-end demo
