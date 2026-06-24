@@ -22,5 +22,5 @@ Usage (CLI)::
 """
 from .client import HandshakeAgent, parse_prompt
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 __all__ = ["HandshakeAgent", "parse_prompt", "__version__"]

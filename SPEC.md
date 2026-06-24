@@ -146,7 +146,37 @@ Response 200:
 }
 ```
 
-### 5.4 WebSocket 实时通道
+### 5.4 动态延长 Token 有效期
+
+```
+POST {baseUrl}/handshake/session/{sessionId}/extend
+X-Handshake-Token: {token}
+Content-Type: application/json
+
+{
+  "extraSeconds": 1800    // 额外延长的秒数（默认 1800，最大 86400）
+}
+
+Response 200:
+{
+  "ok": true,
+  "extended": 1800,       // 实际延长的秒数
+  "expiresIn": 3412       // 新的剩余有效期（秒）
+}
+```
+
+**适用场景：**
+- 批量数据录入（需要多轮 Agent 提交）
+- 多步审批流程（Agent 需跨多个页面操作）
+- 智能硬件长会话（机器人执行复杂任务）
+- 任何预计超过默认 TTL 的任务
+
+**注意：**
+- 单次延长上限 86400 秒（24 小时），防止无限期存活
+- 服务端可通过 `on_extend` 钩子拒绝延长请求或调整延长时长
+- 延长后服务端会通过 WebSocket 推送 `{"type": "extended", "expiresIn": N}` 通知浏览器
+
+### 5.5 WebSocket 实时通道
 
 ```
 WS {wsUrl}?token={token}
@@ -159,6 +189,7 @@ WS {wsUrl}?token={token}
 { "type": "done",      "applied": 5, "rejected": 1 }
 { "type": "error",     "msg": "..." }
 { "type": "connected", "sessionId": "..." }
+{ "type": "extended",  "expiresIn": 3412 }
 ```
 
 ---

@@ -63,6 +63,7 @@ class HandshakeManager:
         self._on_create_callbacks = []
         self._on_action_callbacks = []
         self._on_done_callbacks = []
+        self._on_extend_callbacks = []
 
         self._register(app, sock)
         self.store.start_cleanup_thread()
@@ -77,6 +78,18 @@ class HandshakeManager:
     def on_action(self, fn):
         """装饰器：Agent 提交 action 时调用 fn(session, action, request)"""
         self._on_action_callbacks.append(fn)
+        return fn
+
+    def on_extend(self, fn):
+        """
+        装饰器：Agent 请求延长 Token 时调用 fn(session, extra_seconds, request)。
+
+        返回值：
+          - None / True  → 允许延长
+          - False        → 拒绝（返回 403）
+          - int > 0      → 允许，但实际延长时间改为返回值（秒）
+        """
+        self._on_extend_callbacks.append(fn)
         return fn
 
     def on_done(self, fn):
@@ -310,6 +323,52 @@ class HandshakeManager:
             since = request.args.get('since', '')
             changes = sess.get_diff_since(since) if since else sess.changes[-50:]
             return jsonify({'sessionId': sid, 'since': since, 'changes': changes})
+
+        # POST /session/<sid>/extend
+        @app.route(f'{prefix}/session/<sid>/extend', methods=['POST'])
+        def _hpp_extend(sid):
+            """
+            动态延长 Token 有效期。
+            适用于长任务：批量数据录入、多轮 Agent 协作、智能硬件长会话等。
+
+            Body JSON:
+              extraSeconds: int  — 额外延长的秒数（默认 1800，即再延长 30 分钟）
+
+            鉴权：Agent 侧调用，需 X-Handshake-Token；
+                  服务端也可在 on_extend hook 里自行决策是否允许延长。
+            """
+            sess = self.store.get(sid)
+            if not sess:
+                return err('session not found or expired', 404)
+            if not self._check_token(sess, request):
+                return err('invalid token', 403)
+
+            body = request.get_json(force=True, silent=True) or {}
+            extra = int(body.get('extraSeconds', 1800))
+            if extra <= 0 or extra > 86400:    # 单次最多延长 24 小时
+                return err('extraSeconds must be between 1 and 86400')
+
+            # 钩子：服务端可覆盖延长逻辑（例如：限制最大 TTL、需要额外权限）
+            for cb in self._on_extend_callbacks:
+                try:
+                    result = cb(sess, extra, request)
+                    if result is False:
+                        return err('extension denied by server policy', 403)
+                    if isinstance(result, int) and result > 0:
+                        extra = result   # 钩子可调整实际延长时间
+                except Exception as e:
+                    return err(str(e), 403)
+
+            new_expires = sess.extend(extra)
+
+            # 通知浏览器 token 已延长
+            sess.broadcast({'type': 'extended', 'expiresIn': new_expires})
+
+            return jsonify({
+                'ok':        True,
+                'extended':  extra,
+                'expiresIn': new_expires,
+            })
 
         # WS /ws/handshake/<sid>
         @sock.route(f'{self.ws_prefix}/<sid>')

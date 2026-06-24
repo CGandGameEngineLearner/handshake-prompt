@@ -93,6 +93,22 @@ class Session:
     def expires_in(self):
         return max(0, int(self.ttl - (time.time() - self.touched_at)))
 
+    def extend(self, extra_seconds):
+        """
+        动态延长 Token 有效期。
+        适用于长任务：批量数据录入、多轮 Agent 协作、智能硬件长会话等。
+
+        Args:
+            extra_seconds: 在当前剩余时间基础上再延长的秒数。
+                           例如 extend(1800) 表示再延长 30 分钟。
+
+        Returns:
+            新的剩余秒数。
+        """
+        self.ttl += extra_seconds
+        self.touch()
+        return self.expires_in()
+
     # ── 频率限制 ─────────────────────────────────────────
 
     def check_rate_limit(self):
