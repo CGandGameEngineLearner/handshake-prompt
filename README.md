@@ -57,6 +57,42 @@ This friction kills adoption. Most users never get through it.
 
 Handshake Prompt is purpose-built for **AI-enabling legacy IT systems** that weren't designed with Agent access in mind.
 
+### 📋 Complex Enterprise Forms — The Core Scenario
+
+> *"The information I need is scattered across an Excel sheet, a chat log, and my own memory. Can you just fill it in for me?"*
+
+Enterprise web portals often contain complex forms that require users to manually transcribe data from multiple sources — spreadsheets, emails, meeting notes, past records. This is tedious, error-prone, and nobody's favorite part of the workday.
+
+**With Handshake Prompt:**
+
+```
+1. User opens the form in their browser (already authenticated)
+2. Clicks "🤖 AI Assistant" → copies the handshake prompt
+3. Pastes it to their Agent of choice:
+      OpenClaw · Workbody · Claude · Cursor · Codemaker · any LLM chat
+4. Tells the Agent in plain language:
+      "Fill this from the attached Excel"
+      "Use the numbers from my last chat with the vendor"
+      "Same as the form I submitted last month, but update the date and amount"
+5. Watches each field fill in live on the page
+6. Reviews, edits two fields, clicks Submit
+```
+
+The Agent never touches the backend. It only writes to the form the user is already looking at, and nothing saves until the user confirms.
+
+---
+
+**Concrete examples of what users tell their Agent:**
+
+| Source | What the user says | What the Agent does |
+|--------|-------------------|---------------------|
+| Excel file | *"Fill from the attached procurement sheet, row 5"* | Reads the Excel, maps columns to form fields |
+| Chat history | *"Use the delivery address from my conversation with the supplier yesterday"* | Extracts structured data from unstructured chat |
+| Past habit | *"Same as last month's report, update the period and total"* | Calls `get-context`, copies existing values, patches what changed |
+| Photo / scan | *"Here's the receipt photo, fill the reimbursement form"* | OCR + field mapping |
+| Voice memo | *"I recorded the meeting notes, fill the project summary form"* | Transcription + field extraction |
+| Mixed | *"Excel for the items, chat for the vendor info, last month for the rest"* | Aggregates from multiple sources |
+
 ### 📋 OA / Office Automation
 > *"Submit this expense report for me. Dates from my calendar, amounts from the receipt photo."*
 
